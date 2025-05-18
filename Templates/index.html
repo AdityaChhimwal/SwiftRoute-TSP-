@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SwiftRoute – Delivery Route Optimizer</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+    input { margin: 5px; padding: 5px; }
+    button { margin: 10px 5px; padding: 7px 15px; }
+    #map { height: 400px; margin-top: 20px; border: 1px solid #aaa; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h2>SwiftRoute – Delivery Route Optimizer</h2>
+
+  <h4>Select Input Method:</h4>
+  <label><input type="radio" name="inputMode" value="manual" checked onchange="toggleInput()"> Manual Input</label>
+  <label><input type="radio" name="inputMode" value="csv" onchange="toggleInput()"> Upload CSV</label>
+
+  <!-- Manual Input Section -->
+  <div id="manualInput">
+    <div id="inputs"></div>
+    <button onclick="addInput()">Add Location</button>
+  </div>
+
+  <!-- CSV Upload Section -->
+  <div id="csvInput" style="display: none;">
+    <input type="file" id="csvFile" accept=".csv">
+    <p style="font-size: 0.9em;">CSV format: <code>latitude,longitude</code> (with header)</p>
+  </div>
+
+  <!-- Shared Buttons -->
+  <button onclick="submit()">Optimize</button>
+  <button onclick="downloadCSV()">Download CSV</button>
+
+  <pre id="output"></pre>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    let map = L.map('map').setView([20, 78], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let markers = [], routeLine;
+
+    function toggleInput() {
+      const mode = document.querySelector('input[name="inputMode"]:checked').value;
+      document.getElementById("manualInput").style.display = mode === "manual" ? "block" : "none";
+      document.getElementById("csvInput").style.display = mode === "csv" ? "block" : "none";
+    }
+
+    function addInput() {
+      let div = document.createElement("div");
+      div.innerHTML = '<input placeholder="latitude"> <input placeholder="longitude">';
+      document.getElementById("inputs").appendChild(div);
+    }
+
+    async function submit() {
+      const mode = document.querySelector('input[name="inputMode"]:checked').value;
+
+      if (mode === "manual") {
+        let coords = [];
+        document.querySelectorAll("#inputs div").forEach(div => {
+          let x = parseFloat(div.children[0].value);
+          let y = parseFloat(div.children[1].value);
+          if (!isNaN(x) && !isNaN(y)) coords.push([x, y]);
+        });
+        if (coords.length < 2) return alert("Enter at least 2 valid points.");
+        await sendToServer(coords);
+      } else {
+        const file = document.getElementById("csvFile").files[0];
+        if (!file) return alert("Please select a CSV file.");
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+          const lines = e.target.result.trim().split("\n").slice(1);
+          const coords = lines.map(line => line.split(",").map(Number));
+          if (coords.length < 2) return alert("CSV must contain at least 2 rows of coordinates.");
+          await sendToServer(coords);
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    async function sendToServer(coords) {
+      const res = await fetch('/optimize', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ points: coords })
+      });
+      const data = await res.json();
+
+      window.optimizedData = {
+        points: coords,
+        route: data.route,
+        distance: data.distance
+      };
+
+      document.getElementById("output").textContent =
+        "Best Route (indexes): " + data.route + "\\nTotal Distance: " + data.distance + " km";
+
+      drawRoute(coords, data.route);
+    }
+
+    function drawRoute(points, route) {
+      markers.forEach(m => map.removeLayer(m));
+      if (routeLine) map.removeLayer(routeLine);
+
+      let latlngs = [];
+      route.forEach(i => {
+        let marker = L.marker(points[i]).addTo(map).bindPopup("Stop " + (i + 1));
+        markers.push(marker);
+        latlngs.push(points[i]);
+      });
+      latlngs.push(points[route[0]]); // loop back
+      routeLine = L.polyline(latlngs, {color: 'blue'}).addTo(map);
+      map.fitBounds(routeLine.getBounds());
+    }
+
+    function downloadCSV() {
+      if (!window.optimizedData) return alert("Please run Optimize first.");
+
+      fetch('/export', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(window.optimizedData)
+      })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'route.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    }
+
+    // Start with 2 manual inputs by default
+    addInput(); addInput();
+  </script>
+</body>
+</html>
+

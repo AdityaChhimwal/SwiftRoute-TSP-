@@ -1,0 +1,128 @@
+body {
+font-family: 'Segoe UI', sans-serif;
+  background-color: #f8fafc; /* Fallback color */
+  background-image: url('tspbg4.jpg'); /* Replace with your image path */
+  background-size: cover; /* Covers the entire viewport */
+  background-position: center; /* Centers the image */
+  background-repeat: no-repeat; /* Prevents repeating */
+  background-attachment: fixed; /* Keeps image fixed during scroll */
+  color: #1f2937;
+  max-width: 960px;
+  margin: auto;
+  padding: 40px 20px;
+  line-height: 1.6;
+  position: relative;
+  
+
+}
+
+h2 {
+font-size: 2rem;
+font-weight: 600;
+margin-bottom: 0.75em;
+color: #111827;
+}
+
+h4 {
+font-size: 1.1rem;
+font-weight: 500;
+margin: 1.5em 0 0.5em;
+color: #374151;
+}
+
+/* Form Elements */
+input[type="text"],
+input[type="number"],
+input[type="file"],
+input[type="radio"],
+input[type="button"],
+input[type="submit"] {
+font-size: 0.95rem;
+padding: 8px 12px;
+margin: 6px 6px 12px 0;
+border: 1px solid #cbd5e1;
+border-radius: 6px;
+background-color: #fff;
+color: #1f2937;
+outline: none;
+transition: box-shadow 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="file"]:focus {
+box-shadow: 0 0 0 2px #93c5fd;
+border-color: #60a5fa;
+}
+
+/* Radio buttons */
+label {
+margin-right: 20px;
+font-size: 0.95rem;
+color: #374151;
+}
+
+/* Buttons */
+button {
+font-size: 0.95rem;
+padding: 10px 18px;
+background-color: #3b82f6;
+color: white;
+border: none;
+border-radius: 6px;
+margin: 10px 8px 20px 0;
+cursor: pointer;
+transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:hover {
+background-color: #2563eb;
+box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* CSV input instructions */
+p {
+font-size: 0.85rem;
+color: #6b7280;
+}
+
+/* Input rows */
+#inputs div {
+margin-bottom: 10px;
+}
+
+/* Output area */
+pre {
+background-color: #f1f5f9;
+padding: 12px 16px;
+border-left: 4px solid #3b82f6;
+border-radius: 5px;
+font-size: 0.9rem;
+color: #334155;
+white-space: pre-wrap;
+}
+
+/* Map container */
+#map {
+margin-top: 20px;
+height: 450px;
+border-radius: 8px;
+box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+border: 1px solid #e5e7eb;
+}
+
+/* Responsive tweaks */
+@media screen and (max-width: 600px) {
+body {
+padding: 20px 12px;
+}
+
+button {
+width: 100%;
+margin-bottom: 12px;
+}
+
+input[type="text"],
+input[type="file"] {
+width: 100%;
+}
+}
