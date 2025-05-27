@@ -1,147 +1,262 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>SwiftRoute – Delivery Route Optimizer</title>
-  <meta charset="utf-8" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
+  <meta charset="UTF-8" />
+  <title>SwiftRoute – Route Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
-    input { margin: 5px; padding: 5px; }
-    button { margin: 10px 5px; padding: 7px 15px; }
-    #map { height: 400px; margin-top: 20px; border: 1px solid #aaa; }
-    pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 960px;
+      margin: auto;
+    }
+    input[type="number"] {
+      margin: 2px;
+      padding: 5px;
+    }
+    button {
+      margin: 5px;
+      padding: 6px 12px;
+      font-weight: bold;
+    }
+    #map {
+      height: 450px;
+      margin-top: 20px;
+    }
+    .legend {
+      background: white;
+      padding: 8px;
+      font-size: 14px;
+      line-height: 20px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 1000;
+    }
+    .legend img {
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .cost-box {
+      background: #f2f2f2;
+      border-left: 6px solid #4CAF50;
+      padding: 10px;
+      margin-top: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <h2>SwiftRoute – Delivery Route Optimizer</h2>
 
-  <h4>Select Input Method:</h4>
-  <label><input type="radio" name="inputMode" value="manual" checked onchange="toggleInput()"> Manual Input</label>
-  <label><input type="radio" name="inputMode" value="csv" onchange="toggleInput()"> Upload CSV</label>
+  <h2>SwiftRoute – Route Optimizer</h2>
 
-  <!-- Manual Input Section -->
-  <div id="manualInput">
-    <div id="inputs"></div>
-    <button onclick="addInput()">Add Location</button>
+  <h4>Enter Coordinates Manually</h4>
+  <div id="inputs">
+    <div>
+      <input type="number" step="any" placeholder="Latitude">
+      <input type="number" step="any" placeholder="Longitude">
+    </div>
+  </div>
+  <button onclick="addInput()">Add Location</button>
+
+  <div style="margin-top: 10px;">
+    <label>Mileage (km/l): <input type="number" id="mileage" value="20" style="width:60px;"></label>
+    <label style="margin-left:20px;">Fuel Price (₹/litre): <input type="number" id="fuelPrice" value="100" style="width:60px;"></label>
   </div>
 
-  <!-- CSV Upload Section -->
-  <div id="csvInput" style="display: none;">
-    <input type="file" id="csvFile" accept=".csv">
-    <p style="font-size: 0.9em;">CSV format: <code>latitude,longitude</code> (with header)</p>
-  </div>
+  <button onclick="optimize()">Optimize Route</button>
 
-  <!-- Shared Buttons -->
-  <button onclick="submit()">Optimize</button>
-  <button onclick="downloadCSV()">Download CSV</button>
+  <h4 style="margin-top: 20px;">Or Upload CSV</h4>
+  <input type="file" id="csvFile" accept=".csv">
+  <button onclick="loadCSV()">Load CSV</button>
 
-  <pre id="output"></pre>
+  <div id="output" style="margin-top: 20px;"></div>
+  <button onclick="downloadCSV()">Download Route CSV</button>
+
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    let map = L.map('map').setView([20, 78], 4);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    let markers = [], routeLine;
+  <div class="legend" id="legend">
+    <strong>Legend</strong><br>
+    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png" width="20"> Delivery Stop<br>
+    <img src="https://cdn-icons-png.flaticon.com/512/2967/2967350.png" width="20"> Hospital<br>
+    <img src="https://cdn-icons-png.flaticon.com/512/1397/1397897.png" width="20"> Hotel<br>
+    <img src="https://cdn-icons-png.flaticon.com/512/3103/3103474.png" width="20"> Petrol Pump
+  </div>
 
-    function toggleInput() {
-      const mode = document.querySelector('input[name="inputMode"]:checked').value;
-      document.getElementById("manualInput").style.display = mode === "manual" ? "block" : "none";
-      document.getElementById("csvInput").style.display = mode === "csv" ? "block" : "none";
-    }
+  <script>
+    const stopIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    const hospitalIcon = new L.Icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/2967/2967350.png',
+      iconSize: [30, 30],
+      iconAnchor: [15, 30],
+      popupAnchor: [0, -30]
+    });
+    const hotelIcon = new L.Icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/1397/1397897.png',
+      iconSize: [30, 30],
+      iconAnchor: [15, 30],
+      popupAnchor: [0, -30]
+    });
+    const fuelIcon = new L.Icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/3103/3103474.png',
+      iconSize: [30, 30],
+      iconAnchor: [15, 30],
+      popupAnchor: [0, -30]
+    });
+
+    let map = L.map('map').setView([20, 78], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let inputs = document.getElementById('inputs');
+    let markers = [], extraMarkers = [], routeLine = null;
 
     function addInput() {
-      let div = document.createElement("div");
-      div.innerHTML = '<input placeholder="latitude"> <input placeholder="longitude">';
-      document.getElementById("inputs").appendChild(div);
+      let div = document.createElement('div');
+      div.innerHTML = '<input type="number" step="any" placeholder="Latitude"> <input type="number" step="any" placeholder="Longitude">';
+      inputs.appendChild(div);
     }
 
-    async function submit() {
-      const mode = document.querySelector('input[name="inputMode"]:checked').value;
-
-      if (mode === "manual") {
-        let coords = [];
-        document.querySelectorAll("#inputs div").forEach(div => {
-          let x = parseFloat(div.children[0].value);
-          let y = parseFloat(div.children[1].value);
-          if (!isNaN(x) && !isNaN(y)) coords.push([x, y]);
-        });
-        if (coords.length < 2) return alert("Enter at least 2 valid points.");
-        await sendToServer(coords);
-      } else {
-        const file = document.getElementById("csvFile").files[0];
-        if (!file) return alert("Please select a CSV file.");
-        const reader = new FileReader();
-        reader.onload = async function (e) {
-          const lines = e.target.result.trim().split("\n").slice(1);
-          const coords = lines.map(line => line.split(",").map(Number));
-          if (coords.length < 2) return alert("CSV must contain at least 2 rows of coordinates.");
-          await sendToServer(coords);
-        };
-        reader.readAsText(file);
-      }
+    function getCoords() {
+      let coords = [];
+      Array.from(inputs.querySelectorAll('div')).forEach(div => {
+        let lat = parseFloat(div.children[0].value);
+        let lon = parseFloat(div.children[1].value);
+        if (!isNaN(lat) && !isNaN(lon)) coords.push([lat, lon]);
+      });
+      return coords;
     }
 
-    async function sendToServer(coords) {
-      const res = await fetch('/optimize', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+    async function optimize() {
+      clearMap();
+      const coords = getCoords();
+      if (coords.length < 2) return alert("Add at least 2 locations.");
+
+      const cityRes = await fetch("/get_place_names", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coords })
+      });
+      const cityNames = await cityRes.json();
+
+      const res = await fetch("/optimize", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ points: coords })
       });
       const data = await res.json();
+      const { route, distance } = data;
 
-      window.optimizedData = {
-        points: coords,
-        route: data.route,
-        distance: data.distance
-      };
+      drawRoute(coords, route);
+      showNearby(coords);
 
-      document.getElementById("output").textContent =
-        "Best Route (indexes): " + data.route + "\\nTotal Distance: " + data.distance + " km";
+      let mileage = parseFloat(document.getElementById("mileage").value);
+      let fuelPrice = parseFloat(document.getElementById("fuelPrice").value);
+      let cost = (distance / mileage) * fuelPrice;
 
-      drawRoute(coords, data.route);
+      let out = `<pre><strong>Optimized Route:</strong>\n`;
+      route.forEach((i, idx) => { out += `Stop ${idx + 1}: ${cityNames[i]}\n`; });
+      out += `Return to: ${cityNames[route[0]]}\n\n`;
+      out += `Total Distance: ${distance} km</pre>`;
+      out += `<div class="cost-box">Estimated Fuel Cost: ₹${Math.round(cost)}</div>`;
+      document.getElementById("output").innerHTML = out;
     }
 
-    function drawRoute(points, route) {
-      markers.forEach(m => map.removeLayer(m));
-      if (routeLine) map.removeLayer(routeLine);
-
-      let latlngs = [];
-      route.forEach(i => {
-        let marker = L.marker(points[i]).addTo(map).bindPopup("Stop " + (i + 1));
+    async function drawRoute(points, route) {
+      let reordered = route.map(i => points[i]);
+      reordered.push(points[route[0]]);
+      reordered.forEach((pt, i) => {
+        let marker = L.marker(pt, { icon: stopIcon }).addTo(map).bindPopup("Stop " + (i + 1));
         markers.push(marker);
-        latlngs.push(points[i]);
       });
-      latlngs.push(points[route[0]]); // loop back
-      routeLine = L.polyline(latlngs, {color: 'blue'}).addTo(map);
+      const res = await fetch('/roadroute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coordinates: reordered.map(p => [p[1], p[0]]) })
+      });
+      const geo = await res.json();
+      routeLine = L.geoJSON(geo, { style: { color: 'blue', weight: 4 } }).addTo(map);
       map.fitBounds(routeLine.getBounds());
     }
 
-    function downloadCSV() {
-      if (!window.optimizedData) return alert("Please run Optimize first.");
-
-      fetch('/export', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(window.optimizedData)
-      })
-      .then(res => res.blob())
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'route.csv';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+    async function showNearby(coords) {
+      const center = coords[0];
+      const res = await fetch("/nearby_places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ center })
+      });
+      const data = await res.json();
+      data.elements.forEach(place => {
+        const lat = place.lat, lon = place.lon;
+        const type = place.tags?.amenity || place.tags?.tourism || "place";
+        let icon = stopIcon, label = type;
+        if (type === "hospital") { icon = hospitalIcon; label = "🏥 Hospital"; }
+        else if (type === "hotel") { icon = hotelIcon; label = "🏨 Hotel"; }
+        else if (type === "fuel") { icon = fuelIcon; label = "⛽ Fuel"; }
+        const marker = L.marker([lat, lon], { icon }).addTo(map).bindPopup(label);
+        extraMarkers.push(marker);
       });
     }
 
-    // Start with 2 manual inputs by default
-    addInput(); addInput();
+    function clearMap() {
+      markers.forEach(m => map.removeLayer(m));
+      extraMarkers.forEach(m => map.removeLayer(m));
+      if (routeLine) map.removeLayer(routeLine);
+      markers = []; extraMarkers = [];
+    }
+
+    function loadCSV() {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const rows = e.target.result.split('\n').slice(1);
+        inputs.innerHTML = '';
+        rows.forEach(row => {
+          const [lat, lon] = row.split(',').map(s => parseFloat(s.trim()));
+          if (!isNaN(lat) && !isNaN(lon)) {
+            const div = document.createElement('div');
+            div.innerHTML = `<input type="number" step="any" value="${lat}"> <input type="number" step="any" value="${lon}">`;
+            inputs.appendChild(div);
+          }
+        });
+      };
+      reader.readAsText(file);
+    }
+
+    async function downloadCSV() {
+      const coords = getCoords();
+      const res = await fetch("/optimize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points: coords })
+      });
+      const data = await res.json();
+      const exportRes = await fetch("/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          points: coords,
+          route: data.route,
+          distance: data.distance
+        })
+      });
+      const blob = await exportRes.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'route.csv';
+      link.click();
+    }
   </script>
+
 </body>
 </html>
-
